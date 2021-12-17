@@ -1,3 +1,4 @@
+import csv
 import json
 import re
 import sys
@@ -79,9 +80,14 @@ def retrive_data(path):
     return [SecurityReference, orders]
 
 
-def generate_out_put(out_path):
+def generate_out_put(data, out_path):
     # generate output file
-    pass
+    header = get_column_list()
+    out_put = [header, data]
+    with open(out_path, 'wb') as myfile:
+        wr = csv.writer(myfile, delimiter = '|')
+        wr.writerow(out_put)
+
 
 if __name__ == '__main__':
     output = []
@@ -100,15 +106,27 @@ if __name__ == '__main__':
         # Total Buy Quantity
         Total_Buy_Quantity = df.loc[(df[0] == id) & (df[1] == 'BUY'), 2:2].sum()
         # Total Sell Quantity
-        Total_Sell_Quantity = df.loc[(df[0] == id) & (df[1] == 'SELL'), 3:3].sum()
+        Total_Sell_Quantity = df.loc[(df[0] == id) & (df[1] == 'SELL'), 2:2].sum()
         # Max Buy Price .max()
-        Max_Buy_Price = df.loc[(df[0] == id) & (df[1] == 'BUY'), 2:2].max()
+        Max_Buy_Price = df.loc[(df[0] == id) & (df[1] == 'BUY'), 3:3].max()
         # Min Sell Price
         Min_Sell_Price = df.loc[(df[0] == id) & (df[1] == 'SELL'), 3:3].min()
-        item.append(total_buy,total_sell, Total_Buy_Quantity, Total_Sell_Quantity, Max_Buy_Price, Min_Sell_Price)
-        output.append(item)
-        # sys.exit()
+
+        # 'Weighted Average BUY Price'
+        buy_vector = df.loc[(df[0] == id) & (df[1] == 'BUY'), 3:3]
+        quantity_vector = df.loc[(df[0] == id) & (df[1] == 'BUY'), 2:2]
+        Weighted_Average_BUY_Price = buy_vector.div(quantity_vector.iloc[0].squeeze(), axis='columns')
+        print(Weighted_Average_BUY_Price)
+
+        # df1.div(df2.iloc[0], axis='columns') 'Weighted Average sell Price'
+        sell_vector = df.loc[(df[0] == id) & (df[1] == 'BUY'), 3:3]
+        quantity_vector_sell = df.loc[(df[0] == id) & (df[1] == 'BUY'), 2:2]
+        Weighted_Average_SELL_Price = buy_vector.div(quantity_vector_sell.iloc[0].squeeze(), axis='columns')
+
+        vec = [item[0], item[1], total_sell, Total_Buy_Quantity, Total_Sell_Quantity,
+               Weighted_Average_BUY_Price, Weighted_Average_SELL_Price, Max_Buy_Price, Min_Sell_Price]
+        output.append(vec)
 
     # generate output file
-    generate_out_put('output.csv')
-
+    print(output)
+    generate_out_put(output, 'output.csv')
