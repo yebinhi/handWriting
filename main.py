@@ -44,13 +44,13 @@ def pre_process(s):
             else:
                 print(message)
                 print(s)
-
     return result
 
 
 def retrive_data(path):
     SecurityReference = []
     orders = []
+    rows={}
     with open(path, 'r') as f:
         lines = f.readlines()
 
@@ -66,18 +66,40 @@ def retrive_data(path):
 
         if header['msgType_'] == 8:
             value = json_line['security_']
-            SecurityReference.append([value['isin_'],
-                                      value['currency_'],
-                                      value['securityId_']])
+            if value['securityId_'] not in rows:
+                rows[value['securityId_']] = [0]*10
+            temp = rows.get(value['securityId_'])
+            temp[0] = value['isin_']
+            temp[1] = value['currency_']
+
 
         if header['msgType_'] == 12:
             value = json_line['bookEntry_']
-            orders.append([value['securityId_'],
-                           value['side_'],
-                           value['quantity_'],
-                           value['price_']])
 
-    return [SecurityReference, orders]
+            if value['securityId_'] not in rows:
+                rows[value['securityId_']] = [0]*10
+
+            temp = rows.get(value['securityId_'])
+
+            if value['side_'] == 'BUY':
+                temp[2] = temp[2] + 1
+                temp[4] = temp[4] + value['quantity_']
+                if temp[8] != 0:
+                    temp[8] = max(value['price_'], temp[8])
+            elif value['side_'] == 'SELL':
+                temp[3] = temp[2] + 1
+                temp[5] = temp[5] + value['quantity_']
+                if temp[9] != 0:
+                    temp[9] = min(value['price_'], temp[9])
+    return rows
+
+def cal_weight_buy_sell(rows):
+    for key, value in rows.items():
+        if value[4] != 0:
+            value[6] = value[2] / value[4]
+        if value[5] != 0:
+            value[7] = value[3]/value[5]
+    return rows
 
 
 def generate_out_put(data, out_path):
@@ -90,60 +112,11 @@ def generate_out_put(data, out_path):
         writer.writerows(data)
     csvfile.close()
 
-
 if __name__ == '__main__':
     output = []
-    [SecurityReference, orders] = retrive_data('pretrade_current.txt')
+    output_df = pd.DataFrame(columns =get_column_list())
+    rows = retrive_data('pretrade_current.txt')
+    rows = cal_weight_buy_sell(rows)
+    generate_out_put(rows.values(), 'output2.csv')
+    print(rows.values())
 
-    # -----------------------------------------
-    # use panda data frame
-    # -----------------------------------------
-    df = pd.DataFrame(orders)
-    count = 0
-    for item in SecurityReference:
-        count += 1
-        print(count)
-        id = item[2]
-        # total buy and
-        total_buy = df.loc[(df[0] == id) & (df[1] == 'BUY'), :].shape[0]
-        if total_buy <= 0:
-            continue
-        # total sell
-        total_sell = df.loc[(df[0] == id) & (df[1] == 'SELL'), :].shape[0]
-        if total_sell <= 0:
-            continue
-
-        # Total Buy Quantity
-        Total_Buy_Quantity = df.loc[(df[0] == id) & (df[1] == 'BUY'), 2:2].sum()
-
-        # Total Sell Quantity
-        Total_Sell_Quantity = df.loc[(df[0] == id) & (df[1] == 'SELL'), 2:2].sum()
-
-        # Max Buy Price .max()
-        Max_Buy_Price = df.loc[(df[0] == id) & (df[1] == 'BUY'), 3:3].max()
-        if Max_Buy_Price.shape[0] <= 0: continue
-
-        # Min Sell Price
-        Min_Sell_Price = df.loc[(df[0] == id) & (df[1] == 'SELL'), 3:3].min()
-
-        # print(Min_Sell_Price.loc[0])
-        if Min_Sell_Price.shape[0] <= 0: continue
-
-        # Weighted Average BUY Price
-        Weighted_Average_BUY_Price = total_buy / Total_Buy_Quantity
-
-        # Weighted Average sell Price
-        Weighted_Average_SELL_Price = total_sell / Total_Sell_Quantity
-
-        # produce output
-        vec = [item[0], item[1], str(total_buy), str(total_sell),
-               str(Total_Buy_Quantity.iloc[0]),
-               str(Total_Sell_Quantity.iloc[0]),
-               str(round(Weighted_Average_BUY_Price.iloc[0], 8)),
-               str(round(Weighted_Average_SELL_Price.iloc[0],8)),
-               str(Max_Buy_Price.iloc[0]),
-               str(Min_Sell_Price.iloc[0])]
-        output.append(vec)
-
-    # generate output file
-    generate_out_put(output, 'output.csv')
