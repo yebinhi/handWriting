@@ -1,8 +1,6 @@
 import csv
 import json
 import re
-import sys
-import pandas as pd
 
 
 def get_column_list():
@@ -48,8 +46,6 @@ def pre_process(s):
 
 
 def retrive_data(path):
-    SecurityReference = []
-    orders = []
     rows={}
     with open(path, 'r') as f:
         lines = f.readlines()
@@ -113,8 +109,6 @@ def generate_out_put(data, out_path):
     csvfile.close()
 
 if __name__ == '__main__':
-    output = []
-    output_df = pd.DataFrame(columns =get_column_list())
     rows = retrive_data('pretrade_current.txt')
     rows = cal_weight_buy_sell(rows)
     generate_out_put(rows.values(), 'output2.csv')
